@@ -1,213 +1,75 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Gizmoz AI</title>
+  <title>GizmozV2 AI</title>
   <style>
-    body {
-      background:#0f0f0f;
-      color:white;
-      font-family:sans-serif;
-      padding:20px;
-    }
-
-    h2 { margin-bottom:10px; }
-
-    #chat {
-      height:250px;
-      overflow:auto;
-      border:1px solid #333;
-      padding:10px;
-      margin-bottom:10px;
-    }
-
-    input, textarea, select {
-      width:100%;
-      padding:10px;
-      margin-top:5px;
-      background:#111;
-      color:white;
-      border:1px solid #333;
-    }
-
-    button {
-      padding:10px;
-      margin-top:5px;
-      background:#222;
-      color:white;
-      border:none;
-      cursor:pointer;
-    }
-
-    button:hover {
-      background:#333;
-    }
-
-    .box {
-      border:1px solid #333;
-      padding:10px;
-      margin-top:15px;
-    }
-
-    pre {
-      background:#111;
-      padding:10px;
-      overflow:auto;
-    }
+    body { background:#0f0f0f; color:white; font-family:sans-serif; padding:20px; }
+    #chat { height:300px; overflow:auto; border:1px solid #333; padding:10px; margin-bottom:10px; }
+    input, textarea, select { width:100%; padding:10px; margin-top:5px; background:#111; color:white; border:1px solid #333; }
+    button { padding:10px; margin-top:5px; background:#222; color:white; border:none; cursor:pointer; }
+    button:hover { background:#333; }
+    pre { background:#111; padding:10px; overflow:auto; }
   </style>
 </head>
 <body>
 
-<h2>🤖 GizmozV2 (Personal AI)</h2>
-
+<h2>🤖 GizmozV2 AI</h2>
 <select id="mode">
-  <option value="normal">💬 Chat</option>
+  <option value="chat">💬 Chat</option>
   <option value="web">🌐 Website AI</option>
   <option value="creative">🎬 Creative AI</option>
 </select>
 
 <div id="chat"></div>
-
 <input id="input" placeholder="Ask GizmozV2...">
 <button onclick="send()">Send</button>
 
-<div class="box">
-  <h3>🧠 Train GizmozV2</h3>
-  <input id="trainInput" placeholder="User input (example: make homepage)">
-  <textarea id="trainOutput" placeholder="AI output (text or JSON)"></textarea>
-  <button onclick="train()">Add Training</button>
-</div>
-
-<div class="box">
-  <h3>💾 Data Controls</h3>
-  <button onclick="exportData()">Export Training</button>
-  <button onclick="importData()">Import Training</button>
-  <button onclick="clearData()">Clear Memory</button>
-</div>
-
 <script>
+const apiKey = "YOUR_OPENAI_KEY"; // replace with your OpenAI key
 let trainingData = JSON.parse(localStorage.getItem("gizmozTraining")) || [];
 
-// TRAIN
-function train() {
-  const input = document.getElementById("trainInput").value.toLowerCase();
-  const output = document.getElementById("trainOutput").value;
-
-  if (!input || !output) return alert("Fill both fields!");
-
-  trainingData.push({ input, output });
-  localStorage.setItem("gizmozTraining", JSON.stringify(trainingData));
-
-  alert("Trained! 🧠");
-}
-
-// SMART MATCHING
-function findBestMatch(input) {
-  let bestScore = 0;
-  let bestResponse = null;
-
-  const words = input.split(" ");
-
-  for (let data of trainingData) {
-    let score = 0;
-    let trainedWords = data.input.split(" ");
-
-    for (let w of words) {
-      if (trainedWords.includes(w)) score++;
-    }
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestResponse = data.output;
-    }
-  }
-
-  return bestResponse;
-}
-
-// SEND MESSAGE
-function send() {
-  const input = document.getElementById("input").value.toLowerCase();
-  const chat = document.getElementById("chat");
+async function send() {
+  const input = document.getElementById("input").value;
   const mode = document.getElementById("mode").value;
+  const chat = document.getElementById("chat");
 
   chat.innerHTML += "<div>> " + input + "</div>";
 
-  let response = findBestMatch(input);
+  // Combine training data into prompt
+  let prompt = "You are GizmozV2 AI. Be helpful and use the training data:\n";
+  trainingData.forEach(d => prompt += `User: ${d.input}\nAI: ${d.output}\n`);
+  prompt += `User: ${input}\nAI:`;
 
-  // fallback modes
-  if (!response) {
+  // Mode adjustments
+  if(mode === "web") prompt += " Generate a homepage in JSON format.";
+  if(mode === "creative") prompt += " Generate animation JSON output.";
 
-    if (mode === "web") {
-      response = JSON.stringify({
-        type: "homepage",
-        elements: [
-          { type: "title", text: "My Site" },
-          { type: "button", text: "Start", link: "/view.html?id=start" }
-        ]
-      }, null, 2);
-    }
+  const response = await fetch("https://api.openai.com/v1/completions", {
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "Authorization":"Bearer " + apiKey
+    },
+    body: JSON.stringify({
+      model: "text-davinci-003",
+      prompt: prompt,
+      temperature: 0.7,
+      max_tokens: 300
+    })
+  });
 
-    else if (mode === "creative") {
-      response = JSON.stringify({
-        type: "animation",
-        name: "loop_scene",
-        frames: 60,
-        effects: ["fade", "zoom"]
-      }, null, 2);
-    }
+  const data = await response.json();
+  const text = data.choices[0].text.trim();
 
-    else {
-      response = "I don't know yet... train me 👀";
-    }
-  }
-
-  setTimeout(() => {
-    chat.innerHTML += "<div>GizmozV2:<pre>" + response + "</pre></div>";
-    chat.scrollTop = chat.scrollHeight;
-  }, 300);
-
+  chat.innerHTML += "<div>GizmozV2: <pre>" + text + "</pre></div>";
+  chat.scrollTop = chat.scrollHeight;
   document.getElementById("input").value = "";
 }
 
-// EXPORT
-function exportData() {
-  const dataStr = JSON.stringify(trainingData, null, 2);
-  const blob = new Blob([dataStr], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "gizmoz-training.json";
-  a.click();
-}
-
-// IMPORT
-function importData() {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".json";
-
-  input.onchange = e => {
-    const file = e.target.files[0];
-    const reader = new FileReader();
-
-    reader.onload = function(event) {
-      trainingData = JSON.parse(event.target.result);
-      localStorage.setItem("gizmozTraining", JSON.stringify(trainingData));
-      alert("Imported!");
-    };
-
-    reader.readAsText(file);
-  };
-
-  input.click();
-}
-
-// CLEAR
-function clearData() {
-  if (confirm("Delete all training?")) {
-    trainingData = [];
-    localStorage.removeItem("gizmozTraining");
-    alert("Memory cleared");
-  }
+// Add a simple training function
+function train(input, output){
+  trainingData.push({input, output});
+  localStorage.setItem("gizmozTraining", JSON.stringify(trainingData));
 }
 </script>
 
